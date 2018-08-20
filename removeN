@@ -1,0 +1,157 @@
+#!/home/wuxiaolong/tools/miniconda3/bin/python
+
+import sys
+import argparse
+import time
+
+class RemoveN():
+    def __init__(self):
+        self.ifq1 = ""
+        self.ifq2 = ""
+        self.ofq1 = ""
+        self.ofq2 = ""
+        n_threshold = 0.05
+
+    def se_removeN(self):
+        sys.stderr.write('Start removing Ns in "Single End" mode!\n')
+        sys.stderr.write('Processing fastq file is:%s\n' % self.ifq1)
+        s_time = time.time()
+        sys.stderr.write('Start at ' + time.asctime( time.localtime(s_time)) + '!\n')
+        fout = open(self.ofq1, 'w')
+        with open(self.ifq1, 'r') as f:
+            line1 = 'init'
+            while line1:
+                line1 = f.readline()
+                line2 = f.readline()
+                line3 = f.readline()
+                line4 = f.readline()
+                seq = line2.upper()
+                N_num = seq.count('N')
+                seq_length = len(seq)-1
+                N_per = float(N_num)/seq_length
+                if N_per >= self.n_threshold: continue
+                fout.write(line1)
+                fout.write(line2)
+                fout.write(line3)
+                fout.write(line4)
+        fout.close()
+        e_time = time.time()
+        sys.stdout.write('Complete at ' + time.asctime( time.localtime(e_time)) + '!\n')
+        sys.stderr.write('Using %f seconds!\n' % (e_time-s_time))
+
+    def pe_removeN(self):
+        sys.stdout.write('Start removing Ns in "Pair Ends" mode!\n')
+        sys.stderr.write('Processing fastq files are:%s,%s\n' % (self.ifq1, self.ifq2))
+        s_time = time.time()
+        sys.stdout.write('Start at ' + time.asctime( time.localtime(s_time)) + '!\n')
+        rm_set1 = self.get_rm_set1()
+        rm_set2 = self.get_rm_set2()
+        rm_set = rm_set1 | rm_set2
+        self.output_fq1(rm_set)
+        self.output_fq2(rm_set)
+        e_time = time.time()
+        sys.stdout.write('Complete at ' + time.asctime( time.localtime(e_time) ) + '!\n')
+        sys.stderr.write('Using %f seconds!\n' % (e_time-s_time))
+
+    def get_rm_set1(self):
+        rm_set = set()
+        with open(self.ifq1, 'r') as f:
+            r = 0
+            line1 = 'init'
+            while line1:
+                line1 = f.readline()
+                line2 = f.readline()
+                line3 = f.readline()
+                line4 = f.readline()
+                seq = line2.upper()
+                N_num = seq.count('N')
+                seq_length = len(seq)-1
+                N_per = float(N_num)/seq_length
+                if N_per > self.n_threshold:
+                    rm_set.add(r)
+                r += 1
+        return rm_set
+
+    def get_rm_set2(self):
+        rm_set = set()
+        with open(self.ifq2, 'r') as f:
+            r = 0
+            line1 = 'init'
+            while line1:
+                line1 = f.readline()
+                line2 = f.readline()
+                line3 = f.readline()
+                line4 = f.readline()
+                seq = line2.upper()
+                N_num = seq.count('N')
+                seq_length = len(seq)-1
+                N_per = float(N_num)/seq_length
+                if N_per > self.n_threshold:
+                    rm_set.add(r)
+                r += 1
+        return rm_set
+
+    def output_fq1(self, rm_set):
+        fout = open(self.ofq1, 'w')
+        with open(self.ifq1, 'r') as f:
+            r = 0
+            line1 = 'init'
+            while line1:
+                line1 = f.readline()
+                line2 = f.readline()
+                line3 = f.readline()
+                line4 = f.readline()
+                if r in rm_set:
+                    r += 1
+                    continue
+                fout.write(line1)
+                fout.write(line2)
+                fout.write(line3)
+                fout.write(line4)
+        fout.close()
+
+    def output_fq2(self, rm_set):
+        fout = open(self.ofq2, 'w')
+        with open(self.ifq2, 'r') as f:
+            r = 0
+            line1 = 'init'
+            while line1:
+                line1 = f.readline()
+                line2 = f.readline()
+                line3 = f.readline()
+                line4 = f.readline()
+                if r in rm_set:
+                    r += 1
+                    continue
+                fout.write(line1)
+                fout.write(line2)
+                fout.write(line3)
+                fout.write(line4)
+        fout.close()
+
+def __main():
+    usage = "usage: %(prog)s [options] "
+    description = "Contact: Wu Xiaolong <colinabc@qq.com>"
+    parser = argparse.ArgumentParser(usage = usage, description = description)
+    parser.add_argument('-f', '--inputfq1', action='store', nargs='?', default=None, type=str, required=True, help="input fastq file 1, ( Required ) ",metavar="FILE", dest='inputfq1')
+    parser.add_argument('-r', '--inputfq2', action='store', nargs='?', default=None, type=str, required=False, help="input fastq file 2, ( Optional ) ",metavar="FILE", dest='inputfq2')
+    parser.add_argument('-o', '--outputfq1', action='store', nargs='?', default=None, type=str, required=True, help="output fastq file 1, ( Required ) ",metavar="FILE", dest='outputfq1')
+    parser.add_argument('-p', '--outputfq2', action='store', nargs='?', default=None, type=str, required=False, help="output fastq file 2, ( Optional ) ",metavar="FILE", dest='outputfq2')
+    parser.add_argument('-n', '--npercentage', action='store', nargs='?', default=0.05, type=float, required=False, help="Percentage threshold to discard a read, [ default=0.05  ]",metavar="FLOAT", dest='npercentage')
+    options = parser.parse_args()
+    if len(sys.argv) == 1: parser.print_help()
+    if options.inputfq1 == None:
+        parser.error("'--inputfq1' is required!" )
+    rmN = RemoveN()
+    rmN.ifq1 = options.inputfq1
+    rmN.ifq2 = options.inputfq2
+    rmN.ofq1 = options.outputfq1
+    rmN.ofq2 = options.outputfq2
+    rmN.n_threshold = options.npercentage
+    if options.inputfq2 == None:
+        rmN.se_removeN()
+    else:
+        rmN.pe_removeN()
+
+if __name__=="__main__":
+    __main()
